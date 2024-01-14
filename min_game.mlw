@@ -1,0 +1,381 @@
+
+(** {1 Two-Player Games
+
+  MPRI course 2-36-1 Proof of Programs - Project 2023-2024
+
+*)
+
+
+(** {2 Dummy symbols to fill holes in the remainder} *)
+
+module DummySymbols
+
+predicate __FORMULA_TO_BE_COMPLETED__
+constant __TERM_TO_BE_COMPLETED__ : 'a
+constant __VARIANT_TO_BE_COMPLETED__ : int
+(*let function __EXPRESSION_TO_BE_COMPLETED__ () : 'a = absurd*)
+let constant __CONDITION_TO_BE_COMPLETED__ : bool = False
+let constant __CODE_TO_BE_COMPLETED__ : unit = ()
+
+end
+
+
+(** {2 The "Min" Game} *)
+
+module MinGame
+
+use export int.Int
+use export array.Array
+use export option.Option
+use export DummySymbols
+
+
+(** type for players *)
+type player = Alice | Bob
+
+(** type for configurations of the game *)
+type config = {
+  stack : array int; (* stack of numbers, e.g. [ 20 ; 17 ; 24 ; -30 ; 27 ] *)
+  pos : int;         (* position in the stack, i.e. index of the first number
+                        to be picked *)
+  turn : player;     (* player who will play next move *)
+  score_alice : int; (* current score of Alice *)
+  score_bob : int;   (* current score of Bob *)
+}
+
+(** initial configuration from a given stack of numbers *)
+function initial_config (stack: array int) : config =
+  { stack = stack; pos = 0; turn = Alice; score_alice = 0; score_bob = 0 }
+
+(** QUESTION 1 *)
+
+(** invariant on configurations *)
+predicate inv(c:config) =
+  0 <= c.pos /\ c.pos <= c.stack.length
+
+
+(** type for possible moves, here only two choices: pick one or pick
+    two numbers on top of the stack. *)
+type move = PickOne | PickTwo
+
+(** QUESTION 2 *)
+
+(** set of possible moves in a given configuration. It is either empty,
+    represented as `None` or a pair of two moves represented as
+    `Some(m1,m2)` *)
+let function legal_moves (c:config) : option (move, move) =
+  if c.pos >= c.stack.length - 1 then None else Some(PickOne,PickTwo)
+
+(** QUESTION 3 *)
+
+(** `do_move c m` returns the new configuration obtained from
+    configuration `c` after playing move `m` *)
+let function do_move (c:config) (m:move) : config
+  requires { inv c }
+  requires { legal_moves c <> None }
+  ensures { inv result }
+=
+  match m, c.turn with
+  | PickOne, Alice ->
+    let x = c.stack[c.pos] in
+    { c with turn = Bob; pos = c.pos + 1; score_alice = c.score_alice + x }
+  | PickOne, Bob ->
+    let x = c.stack[c.pos] in
+    { c with turn = Alice; pos = c.pos + 1; score_bob = c.score_bob + x }
+  | PickTwo, Alice ->
+    let x1 = c.stack[c.pos] in
+    let x2 = c.stack[c.pos+1] in
+    { c with turn = Bob; pos = c.pos + 2; score_alice = c.score_alice + x1 + x2 }
+  | PickTwo,Bob ->
+    let x1 = c.stack[c.pos] in
+    let x2 = c.stack[c.pos+1] in
+    { c with turn = Alice; pos = c.pos + 2; score_bob = c.score_bob + x1 + x2 }
+  end
+
+(** `config_value c` is an heuristic evaluation of the config `c`,
+     Alice wants to minimize it whereas Bob wants to maximize it *)
+let function config_value (c:config) : int =
+   c.score_alice - c.score_bob
+
+use array.Init
+
+(* QUESTION 4 *)
+let config0 () : config
+  ensures { result.stack.length = 5 }
+  ensures { result.stack[0] = 20 }
+  ensures { result.stack[1] = 17 }
+  ensures { result.stack[2] = 24 }
+  ensures { result.stack[3] = -30 }
+  ensures { result.stack[4] = 27 }
+  ensures { result.pos = 0 }
+  ensures { result.turn = Alice }
+  ensures { result.score_alice = 0 }
+  ensures { result.score_bob = 0 }
+  ensures { inv result }
+  =
+   let s = init 5 [| 20; 17; 24; -30; 27 |] in
+   { stack = s;
+     pos = 0;
+     turn = Alice;
+     score_alice = 0;
+     score_bob = 0;
+   }
+
+(* You can run the test above using:
+    why3 execute min_game.mlw --use MinGame "config0 ()"
+*)
+
+
+end
+
+
+
+
+(** {2 The MiniMax value of a tree of moves} *)
+
+module MiniMax
+
+  use MinGame
+  use int.MinMax
+
+(* QUESTION 5 *)
+
+  (** [minimax c d] returns the minimax evaluation of config [p]
+      at depth [d].  *)
+  let rec function minimax (c:config) (d:int) : int
+    requires { inv c }
+    variant { d }
+  = if d <= 0 then config_value c else
+    match legal_moves c with
+    | None -> config_value c
+    | Some(m1,m2) ->
+      match c.turn with
+      | Alice -> (* Alice wants to minimize the config value *)
+        min (minimax (do_move c m1) (d-1)) (minimax (do_move c m2) (d-1))
+      | Bob -> (* Bob wants to maximize the config value *)
+        max (minimax (do_move c m1) (d-1)) (minimax (do_move c m2) (d-1))
+      end
+    end
+
+(* QUESTION 6 *)
+
+(** Testing `minimax` on the sample configuration by concrete execution *)
+let test0 () =
+  let c0 = config0 () in
+  (minimax c0 0,
+   minimax c0 1,
+   minimax c0 2,
+   minimax c0 3,
+   minimax c0 4,
+   minimax c0 5)
+
+(* You can run the tests above using:
+    why3 execute min_game.mlw --use MiniMax "test0 ()"
+*)
+
+(** Testing `minimax` on the sample configuration with provers *)
+let test_minimax () =
+  let c0 = config0 () in
+  assert { minimax c0 0 = 0 };
+  assert { minimax c0 1 = 20 };
+  assert { minimax c0 2 = 3 };
+  assert { minimax c0 3 = -3 }
+
+
+
+end
+
+
+
+
+
+(** {2 The alpha-beta algorithm} *)
+
+module AlphaBeta
+
+  use int.MinMax
+  use MinGame
+  use MiniMax
+
+  (** `lt_alpha_n alpha n` means `alpha < n` *)
+  let predicate lt_alpha_n (alpha: option int) (n:int) =
+    match alpha with
+    | None -> true
+    | Some a -> a < n
+    end
+
+  (** `lt_n_beta n beta` means `n < beta` *)
+  let predicate lt_n_beta (n:int) (beta: option int) =
+    match beta with
+    | None -> true
+    | Some b -> n < b
+    end
+
+  (** `max_alpha alpha n` is the maximum of `alpha` and `n` *)
+  let max_alpha (alpha: option int) (n:int) : option int =
+    match alpha with
+    | None -> Some n
+    | Some a -> Some (max a n)
+    end
+
+  (** `min_beta n beta` is the minimum of `n` and `beta` *)
+  let min_beta (n:int) (beta: option int) : option int =
+    match beta with
+    | None -> Some n
+    | Some b -> Some (min n b)
+    end
+
+(* QUESTIONS 7 and 8 *)
+
+  let rec alpha_beta (alpha beta:option int) (c:config) (d:int) : int
+    requires { inv c }
+    variant  { d }
+    ensures  { lt_alpha_n alpha (minimax c d) /\ lt_n_beta (minimax c d) beta -> result = minimax c d }
+    ensures  { lt_alpha_n alpha result -> lt_alpha_n alpha (minimax c d) }
+    ensures  { lt_n_beta result beta -> lt_n_beta (minimax c d) beta }
+  = if d <= 0 then config_value c else
+    match legal_moves c with
+    | None -> config_value c
+    | Some(m1,m2) ->
+      match c.turn with
+      | Alice ->
+        let v1 = alpha_beta alpha beta (do_move c m1) (d-1) in
+        if lt_alpha_n alpha v1 then
+          min v1 (alpha_beta alpha beta (do_move c m2) (d-1))
+        else
+          v1
+      | Bob ->
+        let v1 = alpha_beta alpha beta (do_move c m1) (d-1) in
+        if lt_n_beta v1 beta then
+          max v1 (alpha_beta alpha beta (do_move c m2) (d-1))
+        else
+          v1
+      end
+    end
+
+  (* QUESTIONS 9 and 10 *)
+
+  exception GameEnded
+
+  let best_move (c:config) (d:int) : move
+    requires { inv c } 
+    ensures { minimax (do_move c result) (d-1) = minimax c d }
+    raises { GameEnded -> legal_moves c = None }
+  = if d <= 0 then raise GameEnded else
+    match legal_moves c with
+    | None -> raise GameEnded
+    | Some(m1,m2) ->
+      let v = alpha_beta None None (do_move c m1) (d-1) in
+      match c.turn with
+      | Alice ->
+        if alpha_beta (Some v) (Some (v+1)) (do_move c m2) (d-1) > v then
+          m1
+        else
+          m2
+      | Bob ->
+        if alpha_beta (Some (v-1)) (Some v) (do_move c m2) (d-1) < v then
+          m1
+        else
+          m2
+      end
+    end
+
+  let test_alphabeta () =
+    let c0 = config0 () in
+    try
+    (best_move c0 1,
+     best_move c0 2,
+     best_move c0 3,
+     best_move c0 4)
+     with GameEnded -> absurd
+     end
+
+  (* You can run the test above using:
+      why3 execute num_game.mlw --use AlphaBeta "test_alphabeta ()"
+  *)
+
+end
+
+
+
+
+
+
+(** {2 An efficient algorithm for the Min game} *)
+
+(** Best move found by dynamic programming *)
+
+
+
+module Dynamic
+
+
+
+use int.Int
+use int.MinMax
+use array.Array
+
+use MinGame
+use MiniMax
+
+(*
+(** QUESTION 13 *)
+
+(* Lemma relating the minimax value of a configuration to the minimax
+value of the same configuration with score set to zero.  *)
+
+  let rec lemma minimax_independence (c:config) (d:int) : unit
+    requires { inv c }
+    requires { __FORMULA_TO_BE_COMPLETED__ }
+    variant { __VARIANT_TO_BE_COMPLETED__ }
+    ensures { minimax c d =
+              minimax { c with score_alice = 0 ; score_bob = 0 } d +
+              __TERM_TO_BE_COMPLETED__ }
+  = __EXPRESSION_TO_BE_COMPLETED__ ()
+
+
+
+
+(* QUESTION 16 *)
+
+predicate dynamic_inv_at_index  (stack:array int) (i:int) (a:array int) =
+  forall t:player, sa sb : int, d:int. 
+    let c =
+      { stack = stack; pos = i; turn = t; score_alice = sa; score_bob = sb }
+    in
+    (* relating `minimax c d` to a[i] *)
+    __FORMULA_TO_BE_COMPLETED__
+
+(* QUESTION 15 and 17 *)
+
+let dynamic (stack : array int) : int
+  requires { __FORMULA_TO_BE_COMPLETED__ }
+  ensures { forall d:int. __FORMULA_TO_BE_COMPLETED__ }
+	    (* relating the result to minimax *)
+=
+  let l = stack.length in
+  let a = Array.make (l+1) 0 in
+  for n = l-2 downto 0 do
+    invariant { __FORMULA_TO_BE_COMPLETED__ }
+    a[n] <- __EXPRESSION_TO_BE_COMPLETED__ ();
+  done;
+  a[0]
+
+  let test () =
+    let c0 = config0 () in
+    dynamic c0.stack
+  (* You can run the test above using:
+      why3 execute min_game.mlw --use Dynamic "test ()"
+   *)
+
+
+
+(* QUESTION 18 *)
+
+let dynamic_opt (stack : array int) : int
+  requires { __FORMULA_TO_BE_COMPLETED__ }
+  ensures { __FORMULA_TO_BE_COMPLETED__ }
+= __EXPRESSION_TO_BE_COMPLETED__ ()
+
+*)
+end
