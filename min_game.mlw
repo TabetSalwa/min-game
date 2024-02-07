@@ -6,20 +6,6 @@
 *)
 
 
-(** {2 Dummy symbols to fill holes in the remainder} *)
-
-module DummySymbols
-
-predicate __FORMULA_TO_BE_COMPLETED__
-constant __TERM_TO_BE_COMPLETED__ : 'a
-constant __VARIANT_TO_BE_COMPLETED__ : int
-(*let function __EXPRESSION_TO_BE_COMPLETED__ () : 'a = absurd*)
-let constant __CONDITION_TO_BE_COMPLETED__ : bool = False
-let constant __CODE_TO_BE_COMPLETED__ : unit = ()
-
-end
-
-
 (** {2 The "Min" Game} *)
 
 module MinGame
@@ -27,7 +13,6 @@ module MinGame
 use export int.Int
 use export array.Array
 use export option.Option
-use export DummySymbols
 
 
 (** type for players *)
@@ -145,7 +130,7 @@ module MiniMax
   let rec function minimax (c:config) (d:int) : int
     requires { inv c }
     variant { d }
-  = if d <= 0 then config_value c else
+ = if d <= 0 then config_value c else
     match legal_moves c with
     | None -> config_value c
     | Some(m1,m2) ->
@@ -181,8 +166,6 @@ let test_minimax () =
   assert { minimax c0 2 = 3 };
   assert { minimax c0 3 = -3 }
 
-
-
 end
 
 
@@ -210,6 +193,13 @@ module AlphaBeta
     | None -> true
     | Some b -> n < b
     end
+    
+  (** `lt_alpha_beta alpha beta` means `alpha < beta` *)
+  let predicate lt_alpha_beta (alpha: option int) (beta: option int) =
+    match alpha, beta with
+    | Some a, Some b -> a < b
+    | _ -> true
+    end
 
   (** `max_alpha alpha n` is the maximum of `alpha` and `n` *)
   let max_alpha (alpha: option int) (n:int) : option int =
@@ -229,10 +219,11 @@ module AlphaBeta
 
   let rec alpha_beta (alpha beta:option int) (c:config) (d:int) : int
     requires { inv c }
+    requires { lt_alpha_beta alpha beta }
     variant  { d }
-    ensures  { lt_alpha_n alpha (minimax c d) /\ lt_n_beta (minimax c d) beta -> result = minimax c d }
-    ensures  { lt_alpha_n alpha result -> lt_alpha_n alpha (minimax c d) }
-    ensures  { lt_n_beta result beta -> lt_n_beta (minimax c d) beta }
+    ensures  { lt_alpha_n alpha (minimax c d) <-> lt_alpha_n alpha result }
+    ensures  { lt_n_beta (minimax c d) beta <-> lt_n_beta result beta }
+    ensures  { lt_alpha_n alpha (minimax c d) -> lt_n_beta (minimax c d) beta -> result = minimax c d }
   = if d <= 0 then config_value c else
     match legal_moves c with
     | None -> config_value c
@@ -241,13 +232,13 @@ module AlphaBeta
       | Alice ->
         let v1 = alpha_beta alpha beta (do_move c m1) (d-1) in
         if lt_alpha_n alpha v1 then
-          min v1 (alpha_beta alpha beta (do_move c m2) (d-1))
+          min v1 (alpha_beta alpha (min_beta v1 beta) (do_move c m2) (d-1))
         else
           v1
       | Bob ->
         let v1 = alpha_beta alpha beta (do_move c m1) (d-1) in
         if lt_n_beta v1 beta then
-          max v1 (alpha_beta alpha beta (do_move c m2) (d-1))
+          max v1 (alpha_beta (max_alpha alpha v1) beta (do_move c m2) (d-1))
         else
           v1
       end
@@ -258,17 +249,18 @@ module AlphaBeta
   exception GameEnded
 
   let best_move (c:config) (d:int) : move
-    requires { inv c } 
-    ensures { minimax (do_move c result) (d-1) = minimax c d }
+    requires { inv c }
+    requires { d >= 1 }
+    ensures { minimax c d = minimax (do_move c result) (d-1) }
     raises { GameEnded -> legal_moves c = None }
-  = if d <= 0 then raise GameEnded else
+  =
     match legal_moves c with
     | None -> raise GameEnded
     | Some(m1,m2) ->
-      let v = alpha_beta None None (do_move c m1) (d-1) in
+      let v = minimax (do_move c m1) (d-1) in
       match c.turn with
       | Alice ->
-        if alpha_beta (Some v) (Some (v+1)) (do_move c m2) (d-1) > v then
+        if v < alpha_beta (Some v) (Some (v+1)) (do_move c m2) (d-1) then
           m1
         else
           m2
@@ -291,7 +283,7 @@ module AlphaBeta
      end
 
   (* You can run the test above using:
-      why3 execute num_game.mlw --use AlphaBeta "test_alphabeta ()"
+      why3 execute min_game.mlw --use AlphaBeta "test_alphabeta ()"
   *)
 
 end
@@ -318,7 +310,6 @@ use array.Array
 use MinGame
 use MiniMax
 
-(*
 (** QUESTION 13 *)
 
 (* Lemma relating the minimax value of a configuration to the minimax
@@ -326,14 +317,19 @@ value of the same configuration with score set to zero.  *)
 
   let rec lemma minimax_independence (c:config) (d:int) : unit
     requires { inv c }
-    requires { __FORMULA_TO_BE_COMPLETED__ }
-    variant { __VARIANT_TO_BE_COMPLETED__ }
+    variant { d }
     ensures { minimax c d =
               minimax { c with score_alice = 0 ; score_bob = 0 } d +
-              __TERM_TO_BE_COMPLETED__ }
-  = __EXPRESSION_TO_BE_COMPLETED__ ()
-
-
+              config_value c }
+  =
+    if d > 0 then match legal_moves c with
+                  | None -> ()
+                  | Some (m1,m2) ->
+                            minimax_independence (do_move c m1) (d-1);
+                            minimax_independence (do_move c m2) (d-1);
+                            minimax_independence (do_move { c with score_alice = 0 ; score_bob = 0 } m1) (d-1);
+                            minimax_independence (do_move { c with score_alice = 0 ; score_bob = 0 } m2) (d-1)
+                  end
 
 
 (* QUESTION 16 *)
@@ -344,20 +340,24 @@ predicate dynamic_inv_at_index  (stack:array int) (i:int) (a:array int) =
       { stack = stack; pos = i; turn = t; score_alice = sa; score_bob = sb }
     in
     (* relating `minimax c d` to a[i] *)
-    __FORMULA_TO_BE_COMPLETED__
+    d >= stack.length - i - 1 ->
+    minimax c d = match t with
+                  | Alice -> sa - sb + a[i]
+                  | Bob -> sa - sb - a[i]
+                  end
 
 (* QUESTION 15 and 17 *)
 
 let dynamic (stack : array int) : int
-  requires { __FORMULA_TO_BE_COMPLETED__ }
-  ensures { forall d:int. __FORMULA_TO_BE_COMPLETED__ }
+  requires { stack.length >= 1 }
+  ensures { forall d:int. d >= stack.length - 1 -> minimax (initial_config stack) d = result }
 	    (* relating the result to minimax *)
 =
   let l = stack.length in
   let a = Array.make (l+1) 0 in
   for n = l-2 downto 0 do
-    invariant { __FORMULA_TO_BE_COMPLETED__ }
-    a[n] <- __EXPRESSION_TO_BE_COMPLETED__ ();
+    invariant { dynamic_inv_at_index stack (n+1) a /\ dynamic_inv_at_index stack (n+2) a }
+    a[n] <- min (stack[n] - a[n+1]) (stack[n] + stack[n+1] - a[n+2])
   done;
   a[0]
 
@@ -372,10 +372,34 @@ let dynamic (stack : array int) : int
 
 (* QUESTION 18 *)
 
-let dynamic_opt (stack : array int) : int
-  requires { __FORMULA_TO_BE_COMPLETED__ }
-  ensures { __FORMULA_TO_BE_COMPLETED__ }
-= __EXPRESSION_TO_BE_COMPLETED__ ()
+predicate dynamic_inv  (stack:array int) (i:int) (a:int) =
+  forall t:player, sa sb : int, d:int. 
+    let c =
+      { stack = stack; pos = i; turn = t; score_alice = sa; score_bob = sb }
+    in
+    (* relating `minimax c d` to a *)
+    d >= stack.length - i - 1 ->
+    minimax c d = match t with
+                  | Alice -> sa - sb + a
+                  | Bob -> sa - sb - a
+                  end
 
-*)
+
+let dynamic_opt (stack : array int) : int
+  requires { stack.length >= 1 }
+  ensures { forall d:int. d >= stack.length - 1 -> minimax (initial_config stack) d = result }
+= 
+  let l = stack.length in
+  let ref a = 0 in
+  let ref b = 0 in
+  for n = l-2 downto 0 do
+    invariant { dynamic_inv stack (n+1) a /\ dynamic_inv stack (n+2) b }
+    let temp = a in
+    a <- min (stack[n] - a) (stack[n] + stack[n+1] - b);
+    b <- temp
+  done;
+  a
+
+
 end
+

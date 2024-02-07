@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE why3session PUBLIC "-//Why3//proof session v5//EN"
+"http://why3.lri.fr/why3session.dtd">
+<why3session shape_version="6">
+<prover id="0" name="CVC4" version="1.8" timelimit="5" steplimit="0" memlimit="1000"/>
+<prover id="1" name="Alt-Ergo" version="2.0.0" timelimit="5" steplimit="0" memlimit="1000"/>
+<prover id="2" name="Alt-Ergo" version="2.5.2" timelimit="5" steplimit="0" memlimit="1000"/>
+<prover id="3" name="Z3" version="4.12.6" timelimit="5" steplimit="0" memlimit="1000"/>
+<file format="whyml">
+<path name=".."/><path name="min_game.mlw"/>
+<theory name="MinGame" proved="true">
+ <goal name="do_move&#39;vc" expl="VC for do_move" proved="true">
+ <proof prover="3"><result status="valid" time="0.029882" steps="25076"/></proof>
+ </goal>
+ <goal name="config0&#39;vc" expl="VC for config0" proved="true">
+ <proof prover="3"><result status="valid" time="0.021758" steps="26980"/></proof>
+ </goal>
+</theory>
+<theory name="MiniMax">
+ <goal name="minimax&#39;vc" expl="VC for minimax" proved="true">
+ <proof prover="3"><result status="valid" time="0.015544" steps="25137"/></proof>
+ </goal>
+ <goal name="test0&#39;vc" expl="VC for test0" proved="true">
+ <proof prover="3"><result status="valid" time="0.019841" steps="19583"/></proof>
+ </goal>
+ <goal name="test_minimax&#39;vc" expl="VC for test_minimax">
+ <transf name="split_vc" >
+  <goal name="test_minimax&#39;vc.0" expl="assertion" proved="true">
+  <proof prover="2"><result status="valid" time="0.023268" steps="142"/></proof>
+  </goal>
+  <goal name="test_minimax&#39;vc.1" expl="assertion" proved="true">
+  <proof prover="2"><result status="valid" time="0.064964" steps="1214"/></proof>
+  </goal>
+  <goal name="test_minimax&#39;vc.2" expl="assertion" proved="true">
+  <proof prover="2"><result status="valid" time="1.838572" steps="29335"/></proof>
+  </goal>
+  <goal name="test_minimax&#39;vc.3" expl="assertion">
+  <proof prover="0"><result status="timeout" time="5.000000" steps="4013935"/></proof>
+  <proof prover="2"><result status="timeout" time="5.000000" steps="74443"/></proof>
+  <proof prover="3"><result status="timeout" time="5.000000" steps="4488644"/></proof>
+  </goal>
+ </transf>
+ </goal>
+</theory>
+<theory name="AlphaBeta" proved="true">
+ <goal name="alpha_beta&#39;vc" expl="VC for alpha_beta" proved="true">
+ <proof prover="3"><result status="valid" time="0.113662" steps="293843"/></proof>
+ </goal>
+ <goal name="best_move&#39;vc" expl="VC for best_move" proved="true">
+ <proof prover="3"><result status="valid" time="0.045791" steps="68959"/></proof>
+ </goal>
+ <goal name="test_alphabeta&#39;vc" expl="VC for test_alphabeta" proved="true">
+ <proof prover="3"><result status="valid" time="0.022315" steps="33697"/></proof>
+ </goal>
+</theory>
+<theory name="Dynamic" proved="true">
+ <goal name="minimax_independence&#39;vc" expl="VC for minimax_independence" proved="true">
+ <proof prover="3"><result status="valid" time="0.104873" steps="747024"/></proof>
+ </goal>
+ <goal name="dynamic&#39;vc" expl="VC for dynamic" proved="true">
+ <proof prover="3"><result status="valid" time="1.680123" steps="1784960"/></proof>
+ </goal>
+ <goal name="test&#39;vc" expl="VC for test" proved="true">
+ <proof prover="3"><result status="valid" time="0.016066" steps="20286"/></proof>
+ </goal>
+ <goal name="dynamic_opt&#39;vc" expl="VC for dynamic_opt" proved="true">
+ <transf name="split_vc" proved="true" >
+  <goal name="dynamic_opt&#39;vc.0" expl="loop invariant init" proved="true">
+  <proof prover="3"><result status="valid" time="0.012576" steps="25254"/></proof>
+  </goal>
+  <goal name="dynamic_opt&#39;vc.1" expl="index in array bounds" proved="true">
+  <proof prover="3"><result status="valid" time="0.027376" steps="22923"/></proof>
+  </goal>
+  <goal name="dynamic_opt&#39;vc.2" expl="index in array bounds" proved="true">
+  <proof prover="3"><result status="valid" time="0.025730" steps="22490"/></proof>
+  </goal>
+  <goal name="dynamic_opt&#39;vc.3" expl="index in array bounds" proved="true">
+  <proof prover="3"><result status="valid" time="0.015097" steps="22490"/></proof>
+  </goal>
+  <goal name="dynamic_opt&#39;vc.4" expl="loop invariant preservation" proved="true">
+  <proof prover="1"><result status="valid" time="3.035365" steps="2258"/></proof>
+  <proof prover="2"><result status="timeout" time="5.000000" steps="50422"/></proof>
+  <proof prover="3"><result status="timeout" time="5.000000" steps="4419937"/></proof>
+  </goal>
+  <goal name="dynamic_opt&#39;vc.5" expl="postcondition" proved="true">
+  <proof prover="3"><result status="valid" time="0.019875" steps="23570"/></proof>
+  </goal>
+  <goal name="dynamic_opt&#39;vc.6" expl="VC for dynamic_opt" proved="true">
+  <proof prover="3"><result status="valid" time="0.011362" steps="1958"/></proof>
+  </goal>
+ </transf>
+ </goal>
+</theory>
+</file>
+</why3session>
